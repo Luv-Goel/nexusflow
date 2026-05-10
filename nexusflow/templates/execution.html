@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NexusFlow — Execution Detail</title>
+<style>
+  :root { --bg: #0d1117; --surface: #161b22; --border: #30363d; --text: #c9d1d9; --text-muted: #8b949e; --accent: #58a6ff; --green: #3fb950; --red: #f85149; --yellow: #d29922; --orange: #db6d28; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); padding: 2rem; }
+  h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+  .subtitle { color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.9rem; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin: 1rem 0; }
+  .card h2 { font-size: 1.1rem; margin-bottom: 0.75rem; color: var(--accent); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .stat { text-align: center; padding: 1rem; }
+  .stat-value { font-size: 2rem; font-weight: 700; }
+  .stat-label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  th, td { text-align: left; padding: 0.5rem 0.25rem; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-muted); font-weight: 500; }
+  .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+  .badge-success { background: #1b3a2b; color: var(--green); }
+  .badge-failed { background: #3d1a1a; color: var(--red); }
+  .badge-pending { background: #1c2333; color: var(--accent); }
+  .badge-running { background: #1c1f2b; color: var(--yellow); }
+  .badge-skipped { background: #1c1f2b; color: var(--text-muted); }
+  .badge-timeout { background: #3d1a1a; color: var(--orange); }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .empty { color: var(--text-muted); font-style: italic; padding: 1rem 0; }
+  .log-entry { padding: 0.35rem 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; font-family: 'SFMono-Regular', Consolas, monospace; }
+  .log-entry:last-child { border-bottom: none; }
+  .ts { color: var(--text-muted); font-size: 0.75rem; }
+</style>
+</head>
+<body>
+  <a href="/" style="font-size:0.85rem;">&larr; Back to Dashboard</a>
+  <h1>📋 Execution: <code>{{ execution_id }}</code></h1>
+  <div class="subtitle">Status: <span id="exec-status">—</span></div>
+
+  <div class="grid">
+    <div class="card stat">
+      <div class="stat-value" id="stat-total">0</div>
+      <div class="stat-label">Total Tasks</div>
+    </div>
+    <div class="card stat">
+      <div class="stat-value" id="stat-success" style="color: var(--green)">0</div>
+      <div class="stat-label">Succeeded</div>
+    </div>
+    <div class="card stat">
+      <div class="stat-value" id="stat-failed" style="color: var(--red)">0</div>
+      <div class="stat-label">Failed</div>
+    </div>
+    <div class="card stat">
+      <div class="stat-value" id="stat-duration">—</div>
+      <div class="stat-label">Duration</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>📄 Execution Details</h2>
+    <pre id="exec-json" style="font-size:0.8rem; color: var(--text-muted); overflow-x: auto;"></pre>
+  </div>
+
+  <div class="card">
+    <h2>📝 Task Log</h2>
+    <div id="task-logs">Loading...</div>
+  </div>
+
+  <div class="card">
+    <h2>📊 DAG State</h2>
+    <div id="dag-container" style="height: 400px;"><svg id="dag-svg" width="100%" height="100%"></svg></div>
+  </div>
+
+  <script>
+    const EXECUTION = {{ execution }};
+    const TASK_LOGS = {{ task_logs }};
+    const GRAPH = {{ graph_json }};
+
+    function badge(status) {
+      return `<span class="badge badge-${status}">${status}</span>`;
+    }
+
+    function renderStats() {
+      const logs = TASK_LOGS || [];
+      const total = new Set(logs.map(l => l.node_id)).size;
+      const succeeded = new Set(logs.filter(l => l.status === 'success').map(l => l.node_id)).size;
+      const failed = new Set(logs.filter(l => l.status === 'failed' || l.status === 'timeout').map(l => l.node_id)).size;
+
+      document.getElementById('stat-total').textContent = total;
+      document.getElementById('stat-success').textContent = succeeded;
+      document.getElementById('stat-failed').textContent = failed;
+
+      const ex = EXECUTION;
+      document.getElementById('exec-status').innerHTML = badge(ex.status || 'unknown');
+      if (ex.started_at && ex.finished_at) {
+        const dur = (ex.finished_at - ex.started_at).toFixed(2);
+        document.getElementById('stat-duration').textContent = dur + 's';
+      } else {
+        document.getElementById('stat-duration').textContent = ex.status === 'running' ? 'Running...' : '—';
+      }
+
+      document.getElementById('exec-json').textContent = JSON.stringify(ex, null, 2);
+    }
+
+    function renderTaskLogs() {
+      const el = document.getElementById('task-logs');
+      const logs = TASK_LOGS || [];
+      if (logs.length === 0) {
+        el.innerHTML = '<div class="empty">No task logs yet.</div>';
+        return;
+      }
+      let html = '';
+      for (const l of logs) {
+        const ts = l.timestamp ? new Date(l.timestamp * 1000).toLocaleTimeString() : '';
+        html += `<div class="log-entry"><span class="ts">${ts}</span> ${badge(l.status)} <strong>${l.node_name || l.node_id}</strong> ${l.detail ? '— ' + l.detail : ''} ${l.attempt > 0 ? '(attempt ' + (l.attempt + 1) + ')' : ''}</div>`;
+      }
+      el.innerHTML = html;
+    }
+
+    // ── DAG visualisation (same as workflow detail) ────────────────────
+    function renderDAG(graph) {
+      const svg = document.getElementById('dag-svg');
+      const W = svg.clientWidth || 800;
+      const H = svg.clientHeight || 400;
+      svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+      if (!graph || !graph.nodes || graph.nodes.length === 0) {
+        svg.innerHTML = '<text x="'+(W/2-80)+'" y="'+(H/2)+'" fill="#8b949e" font-size="14">No DAG data</text>';
+        return;
+      }
+
+      // Assign levels via simplified Kahn
+      const nodes = {};
+      for (const n of graph.nodes) nodes[n.id] = n;
+
+      const inDeg = {}; const outEdges = {};
+      for (const n of graph.nodes) { inDeg[n.id] = 0; outEdges[n.id] = []; }
+      for (const e of (graph.edges || [])) {
+        outEdges[e.source] = outEdges[e.source] || [];
+        outEdges[e.source].push(e.target);
+        inDeg[e.target] = (inDeg[e.target] || 0) + 1;
+      }
+
+      const levels = {};
+      let queue = [];
+      for (const n of graph.nodes) if (inDeg[n.id] === 0) queue.push(n.id);
+      let lvl = 0;
+      while (queue.length > 0) {
+        const next = [];
+        for (const nid of queue) {
+          levels[nid] = lvl;
+          for (const tgt of (outEdges[nid] || [])) {
+            inDeg[tgt]--;
+            if (inDeg[tgt] === 0) next.push(tgt);
+          }
+        }
+        queue = next;
+        lvl++;
+      }
+
+      const levelCounts = {}; const levelIndex = {};
+      for (const [nid, l] of Object.entries(levels)) {
+        levelCounts[l] = (levelCounts[l] || 0) + 1;
+        levelIndex[nid] = levelCounts[l] - 1;
+      }
+
+      const maxLevel = Math.max(...Object.values(levels), 0);
+      const padX = 60, padY = 50;
+      const spacingX = (W - 2 * padX) / (maxLevel + 1);
+      const positions = {};
+      for (const [nid, l] of Object.entries(levels)) {
+        const count = levelCounts[l] || 1;
+        const idx = levelIndex[nid];
+        const x = padX + l * spacingX;
+        const y = padY + (idx + 0.5) * (H - 2 * padY) / count;
+        positions[nid] = { x, y };
+      }
+
+      const statusColors = { success: '#3fb950', failed: '#f85149', running: '#d29922', pending: '#30363d', skipped: '#484f58', timeout: '#db6d28' };
+      let edgeHtml = '';
+      for (const e of (graph.edges || [])) {
+        const src = positions[e.source], tgt = positions[e.target];
+        if (src && tgt) edgeHtml += `<line x1="${src.x}" y1="${src.y + 18}" x2="${tgt.x}" y2="${tgt.y - 18}" stroke="#30363d" stroke-width="2" marker-end="url(#arrow)"/>`;
+      }
+
+      let nodeHtml = '';
+      for (const n of graph.nodes) {
+        const pos = positions[n.id];
+        if (!pos) continue;
+        const c = statusColors[n.status] || '#30363d';
+        nodeHtml += `<g><rect x="${pos.x - 60}" y="${pos.y - 18}" width="120" height="36" rx="6" fill="#161b22" stroke="${c}" stroke-width="2"/>
+          <text x="${pos.x}" y="${pos.y + 4}" text-anchor="middle" fill="#c9d1d9" font-size="11">${n.name || n.id.slice(0,12)}</text>
+          <title>${n.name} (${n.id})\nStatus: ${n.status || 'pending'}</title></g>`;
+      }
+
+      svg.innerHTML = `<defs><marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#30363d"/></marker></defs>${edgeHtml}${nodeHtml}`;
+    }
+
+    renderStats();
+    renderTaskLogs();
+    renderDAG(GRAPH);
+  </script>
+</body>
+</html>
