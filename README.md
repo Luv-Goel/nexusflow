@@ -1,8 +1,16 @@
 # ⚡ NexusFlow
 
+![CI](https://github.com/Luv-Goel/nexusflow/actions/workflows/ci.yml/badge.svg)
+![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
+
 **Lightweight DAG-based workflow orchestration engine** — define pipelines as code,
 run them in parallel, persist state to SQLite, schedule with cron, and monitor
 everything via a web UI or CLI.
+
+## Why NexusFlow?
+
+Unlike heavyweight orchestrators like Airflow or Prefect that require databases, message queues, and complex deployments, NexusFlow is designed to be **embedded directly into your Python apps**. It provides full DAG execution capabilities, retries, and persistence with **zero external dependencies** (just standard library).
 
 ```
   ┌──────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────┐

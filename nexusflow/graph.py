@@ -217,13 +217,19 @@ class Graph:
         target : str | Node
             Node id or Node instance that depends on *source*.
         """
-        src_id = source.id if isinstance(source, Node) else source
-        tgt_id = target.id if isinstance(target, Node) else target
+        def _resolve(ref: str | Node) -> str:
+            if isinstance(ref, Node):
+                return ref.id
+            if ref in self._nodes:
+                return ref
+            for nid, node in self._nodes.items():
+                if node.name == ref:
+                    return nid
+            raise ValueError(f"Node {ref!r} not found in graph")
 
-        if src_id not in self._nodes:
-            raise ValueError(f"Source node {src_id!r} not found in graph")
-        if tgt_id not in self._nodes:
-            raise ValueError(f"Target node {tgt_id!r} not found in graph")
+        src_id = _resolve(source)
+        tgt_id = _resolve(target)
+
 
         # Guard against duplicate edges (silent no-op).
         for e in self._out_edges[src_id]:
@@ -389,7 +395,7 @@ class Graph:
                     "params": n.params,
                     "retries": n.retries,
                     "timeout": n.timeout,
-                    "status": n.status.value,
+                    "status": n.status.value if hasattr(n.status, "value") else n.status,
                 }
                 for n in self._nodes.values()
             ],
@@ -413,7 +419,7 @@ class Graph:
                 timeout=nd.get("timeout"),
             )
             node.status = NodeStatus(nd.get("status", "pending"))
-            g._nodes[node.id] = node
+            g.add_node(node)
         for ed in data.get("edges", []):
             g.add_edge(ed["source"], ed["target"])
         return g
