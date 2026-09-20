@@ -179,7 +179,7 @@ class GraphExecutor:
         topo_order = self.graph.topological_sort().order
         upstream_order: dict[str, list[str]] = {}
         for nid in topo_order:
-            upstream_order[nid] = self.graph.upstream_of(nid)
+            upstream_order[nid] = [e.source for e in self.graph._in_edges[nid]]
 
         executor_cls = (
             concurrent.futures.ProcessPoolExecutor
@@ -352,13 +352,14 @@ class GraphExecutor:
 
             except Exception as exc:
                 last_exc = exc
-                node.status = NodeStatus.FAILED
+                if node.status != NodeStatus.TIMEOUT:
+                    node.status = NodeStatus.FAILED
                 node.error = str(exc)
                 node.finished_at = time.time()
                 self.execution_log.append({
                     "node_id": node.id,
                     "node_name": node.name,
-                    "status": NodeStatus.FAILED.value,
+                    "status": node.status.value,
                     "detail": str(exc),
                     "attempt": attempt,
                 })

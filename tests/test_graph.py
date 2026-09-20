@@ -175,7 +175,7 @@ class TestSerialization:
         n.status = "running"
         data = g.to_dict()
         g2 = Graph.from_dict(data)
-        assert g2.get_node(n.id).status == "running"
+        assert g2.get_node(n.id).status.value == "running"
 
     def test_to_dict_includes_metadata(self):
         g = Graph("meta", metadata={"env": "prod"})
