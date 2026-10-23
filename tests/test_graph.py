@@ -156,6 +156,31 @@ class TestGraphUtilities:
         assert g.downstream_of(a.id) == [b.id, c.id] or g.downstream_of(a.id) == [c.id, b.id]
         assert g.downstream_of(c.id) == []
 
+class TestRootsLeaves:
+    def test_roots_and_leaves(self):
+        g = Graph("planning")
+        a = g.add_node(name="A")
+        b = g.add_node(name="B")
+        c = g.add_node(name="C")
+        d = g.add_node(name="D")
+        g.add_edge(a, b)
+        g.add_edge(a, c)
+        g.add_edge(b, d)
+        g.add_edge(c, d)
+        assert set(g.roots()) == {a.id}
+        assert set(g.leaves()) == {d.id}
+
+    def test_empty_graph_roots_leaves(self):
+        g = Graph("empty")
+        assert g.roots() == []
+        assert g.leaves() == []
+
+    def test_single_node_is_both_root_and_leaf(self):
+        g = Graph("single")
+        n = g.add_node(name="X")
+        assert g.roots() == [n.id]
+        assert g.leaves() == [n.id]
+
 
 class TestSerialization:
     def test_roundtrip(self):

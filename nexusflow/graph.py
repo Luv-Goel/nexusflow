@@ -382,6 +382,23 @@ class Graph:
                     stack.append(edge.target)
         return list(visited)
 
+    def roots(self) -> list[str]:
+        """Return node ids with no upstream dependencies (entry points).
+
+        These are the nodes that can start executing immediately when the
+        graph runs — equivalent to level 0 of :meth:`execution_plan`.
+        """
+        return [nid for nid in self._nodes if self._in_degree[nid] == 0]
+
+    def leaves(self) -> list[str]:
+        """Return node ids with no downstream dependents (terminal nodes).
+
+        These are the nodes whose results typically constitute the graph's
+        output — nothing waits on them.
+        """
+        return [nid for nid in self._nodes if nid not in self._out_edges
+                or not self._out_edges[nid]]
+
     def to_dict(self) -> dict:
         """Serialise the graph to a JSON-safe dictionary."""
         return {
