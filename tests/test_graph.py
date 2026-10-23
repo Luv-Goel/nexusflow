@@ -3,6 +3,7 @@ Tests for the DAG graph module.
 """
 
 import pytest
+import unittest
 from nexusflow import Graph, Node, Edge
 
 
@@ -181,3 +182,32 @@ class TestSerialization:
         g = Graph("meta", metadata={"env": "prod"})
         d = g.to_dict()
         assert d["metadata"] == {"env": "prod"}
+
+
+class TestGraphRun(unittest.TestCase):
+    def test_run_returns_results(self):
+        g = Graph("t")
+        node_a = g.add_node(name="A", fn=lambda: 1)
+        node_b = g.add_node(name="B", fn=lambda a: a + 1)
+        g.add_edge("A", "B")
+
+        results = g.run()
+        assert node_a.id in results and results[node_a.id] == 1
+        assert node_b.id in results and results[node_b.id] == 2
+
+    def test_run_propagates_cycle_error(self):
+        g = Graph("cyc")
+        a = g.add_node(name="A")
+        b = g.add_node(name="B")
+        g.add_edge(a, b)
+        g.add_edge(b, a)
+        with self.assertRaises(RuntimeError):
+            g.run()
+
+    def test_run_with_config_overrides(self):
+        import time
+
+        g = Graph("ovr")
+        node = g.add_node(name="slow", fn=lambda: time.sleep(0.01) or "ok")
+        results = g.run(max_workers=1)
+        assert node.id in results and results[node.id] == "ok"

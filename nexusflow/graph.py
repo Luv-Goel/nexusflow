@@ -429,3 +429,15 @@ class Graph:
             f"Graph(id={self.id!r}, name={self.name!r}, "
             f"nodes={len(self._nodes)}, edges={len(self._edges)})"
         )
+
+    def run(self, **config_overrides: Any) -> dict[str, Any]:
+        """Execute this graph in one call using :class:`GraphExecutor`.
+
+        Returns ``{node_id: result, …}`` for successful nodes. Extra keyword
+        arguments are forwarded to :class:`ExecutorConfig` (e.g. max_workers,
+        retries, timeout).
+        """
+        from nexusflow.executor import GraphExecutor, ExecutorConfig
+
+        config = ExecutorConfig(**config_overrides)
+        return GraphExecutor(self, config=config).run()
